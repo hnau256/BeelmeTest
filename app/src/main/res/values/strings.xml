@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Beelme</string>
+
+    <string name="main_activity_not_available">Bluetooth недоступен</string>
+    <string name="main_activity_status">Статус Bluetooth</string>
 </resources>
