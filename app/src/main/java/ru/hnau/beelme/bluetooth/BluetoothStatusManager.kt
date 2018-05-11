@@ -5,13 +5,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.util.Log
+import ru.hnau.beelme.bluetooth.beacon.BeaconDataTransmitterWrapper
+import ru.hnau.beelme.main_activity.MainActivity
 import ru.hnau.beelme.preferences.PreferencesManager
-import ru.hnau.beelme.utils.MainActivityConnector
+import ru.hnau.beelme.utils.ContextContainer
+import ru.hnau.jutils.finisher.await
 import ru.hnau.jutils.possible.Possible
 import ru.hnau.jutils.producer.CallOnAttachProducer
 
 
 object BluetoothStatusManager : CallOnAttachProducer<Possible<Boolean>>() {
+
+    private val TAG = BluetoothStatusManager::class.java.simpleName
 
     private const val ENABLE_ACTION = "android.bluetooth.adapter.action.REQUEST_ENABLE"
     private const val DISABLE_ACTION = "android.bluetooth.adapter.action.REQUEST_DISABLE"
@@ -41,20 +47,20 @@ object BluetoothStatusManager : CallOnAttachProducer<Possible<Boolean>>() {
             return
         }
         val intent = Intent(if (status) ENABLE_ACTION else DISABLE_ACTION)
-        MainActivityConnector.mainActivity?.startActivity(intent)
+        ContextContainer.context.startActivity(intent)
     }
 
     override fun getDataForAttachedListener(listener: (Possible<Boolean>) -> Unit) = bluetoothStatus
 
-    override fun onFirstAttached() {
-        super.onFirstAttached()
-        MainActivityConnector.mainActivity?.registerReceiver(statusChangedListener, STATUS_CHANGED_LISTENER_INTENT_FILTER)
+    fun onMainActivityCreate(mainActivity: MainActivity) {
+        mainActivity.registerReceiver(statusChangedListener, STATUS_CHANGED_LISTENER_INTENT_FILTER)
         updateStatusToLastSessionValue()
+        startBeaconTransmitting()
     }
 
-    override fun onLastDetached() {
-        super.onLastDetached()
-        MainActivityConnector.mainActivity?.unregisterReceiver(statusChangedListener)
+    fun onMainActivityDestroy(mainActivity: MainActivity) {
+        mainActivity.unregisterReceiver(statusChangedListener)
+        BeaconDataTransmitterWrapper.stop()
     }
 
     private fun updateStatusToLastSessionValue() {
@@ -65,6 +71,17 @@ object BluetoothStatusManager : CallOnAttachProducer<Possible<Boolean>>() {
         }
         updateStatus(statusFromPreferences)
     }
+
+    private fun startBeaconTransmitting() =
+            BeaconDataTransmitterWrapper.start().await(
+                    onSuccess = {
+                        Log.d(TAG, "Beacon transmitting started")
+                    },
+                    onError = {
+                        val errorMsg = it?.message ?: "Undefined error"
+                        Log.d(TAG, "Error while starting transmitting: $errorMsg")
+                    }
+            )
 
 
 }
